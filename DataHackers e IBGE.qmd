@@ -1,0 +1,331 @@
+---
+title: "Análise Comparativa - State of Data (2021–2023)"
+subtitle: "Disciplina: Ciência de Dados — Bacharelado em Ciência da Computação — CEUB DF"
+author: "Prof. MSc. Weslley Rodrigues"
+date: "08/04/2025"
+format:
+  html:
+    df-print: paged
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    highlight-style: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+Sys.setenv("VROOM_CONNECTION_SIZE" = 131072 * 10)
+```
+
+# Introdução
+
+Nesta aula, daremos continuidade à análise e
+
+---
+title: "Análise Comparativa - State of Data (2021–2023)"
+subtitle: "Disciplina: Ciência de Dados — Bacharelado em Ciência da Computação — CEUB DF"
+author: "Prof. MSc. Weslley Rodrigues"
+date: "08/04/2025"
+format:
+  html:
+    df-print: paged
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    highlight-style: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+Sys.setenv("VROOM_CONNECTION_SIZE" = 131072 * 10)
+```
+
+# Introdução
+
+Nesta aula, daremos continuidade à análise exploratória dos dados do mercado de trabalho em dados no Brasil. Vamos expandir o escopo para incluir análises comparativas mais robustas entre os anos de 2021, 2022 e 2023, além de avançar na preparação da base para análises preditivas e modelagem estatística.
+
+**Relembrando os objetivos gerais:**
+
+1.  Unificar e harmonizar datasets de anos diferentes (2021–2023)
+2.  Aplicar transformações limpas, com `janitor`, `dplyr` e `stringr`
+3.  Criar visualizações analíticas com `ggplot2`
+4.  Analisar diferenças salariais, perfis profissionais e preferências de trabalho
+5.  Avançar para modelagem e clusterização com `tidymodels` e `kmeans` nas próximas aulas
+
+------------------------------------------------------------------------
+
+## 1. Preparação do Ambiente
+
+```{r pacotes}
+if (!require(pacman)) install.packages("pacman")
+pacman::p_load(
+  dplyr, tidyr, readr, janitor, stringr, lubridate, ggplot2, 
+  plotly, geobr, sf, tidymodels, kableExtra, scales
+)
+```
+
+------------------------------------------------------------------------
+
+## 2. Carregamento e Limpeza Inicial
+
+```{r carregar}
+url_2021 <- "https://drive.google.com/uc?export=download&id=1DlvZRG7S34KyF-sHnz5Ri55f4mLat8XE"
+url_2022 <- "https://drive.google.com/uc?export=download&id=1DjwDaYSpDuqTP8GO0i7KRFMFOptzG95b"
+url_2023 <- "https://drive.google.com/uc?export=download&id=1Dvlc58A41dAuPK0EiCtvdFYjX3dmkMDT"
+```
+
+### 2.1 Função para Limpezza
+
+```{r função-limpeza}
+limpar_nomes <- function(df) {
+  df %>%
+    clean_names() %>%
+    rename_with(~ str_replace_all(., "_+", "_")) %>%
+    rename_with(~ str_trim(.)) %>%
+    rename_with(~ str_replace_all(., "nao", "não")) %>%
+    rename_with(~ str_replace_all(., "sass", "sas")) %>%
+    rename_with(~ str_replace_all(., "pss", "spss")) %>%
+    rename_with(~ str_replace_all(., "java_script", "javascript"))
+}
+```
+
+###2.2 Fase de Tratamento
+
+```{r carregar-dados}
+dados_2021 <- read_csv(url_2021) %>% limpar_nomes() %>% mutate(ano = 2021)
+dados_2022 <- read_csv(url_2022) %>% limpar_nomes() %>% mutate(ano = 2022)
+dados_2023 <- read_csv(url_2023) %>% limpar_nomes() %>% mutate(ano = 2023)
+```
+
+## Tabelas Generos
+
+```{r}
+# Dados de 2021
+dados_2021 %>%
+  filter(!is.na(p1_a_idade)) %>%
+  count(ano, p1_a_a_faixa_idade, p1_b_genero, p1_e_estado_onde_mora) %>%
+  arrange(ano, p1_a_a_faixa_idade, p1_b_genero, p1_e_estado_onde_mora)
+
+# Dados de 2022
+dados_2022 %>%
+  filter(!is.na(p1_a_1_faixa_idade)) %>%
+  count(ano, p1_a_1_faixa_idade, p1_b_genero, p1_c_cor_raca_etnia) %>%
+  arrange(ano, p1_a_1_faixa_idade, p1_b_genero, p1_c_cor_raca_etnia)
+
+# Dados de 2023
+dados_2023 %>%
+  filter(!is.na(p1_a_1_faixa_idade)) %>%
+  count(ano, p1_a_1_faixa_idade, p1_b_genero, p1_c_cor_raca_etnia) %>%
+  arrange(ano, p1_a_1_faixa_idade, p1_b_genero, p1_c_cor_raca_etnia)
+```
+
+```{r}
+# Renomeia a coluna de faixa etária no dataframe de 2021 para ser consistente
+dados_2021_renomeado <- dados_2021 %>%
+  rename(faixa_idade = p1_a_a_faixa_idade)
+
+# Renomeia a coluna de faixa etária nos dataframes de 2022 e 2023 para ser consistente
+dados_2022_renomeado <- dados_2022 %>%
+  rename(faixa_idade = p1_a_1_faixa_idade)
+
+dados_2023_renomeado <- dados_2023 %>%
+  rename(faixa_idade = p1_a_1_faixa_idade)
+
+# Combina os três dataframes renomeados
+dados_todos_anos <- bind_rows(dados_2021_renomeado, dados_2022_renomeado, dados_2023_renomeado)
+
+# Agora, podemos contar a frequência da faixa etária para todos os anos combinados
+# Opção 1: Soma total por faixa etária, ignorando o ano
+dados_todos_anos %>%
+  filter(!is.na(faixa_idade)) %>%
+  count(faixa_idade) %>%
+  arrange(faixa_idade)
+
+```
+
+## Api IBGE
+
+```{r}
+# --- 1. Carregamento de Pacotes ---
+# Execute apenas uma vez se necessário:
+# install.packages("httr")
+# install.packages("jsonlite")
+# install.packages("dplyr")
+
+library(httr)
+library(jsonlite)
+library(dplyr)
+
+# --- 2. Definição da Função para Coletar Dados do IBGE (via API v2) ---
+get_ibge_population_data_r <- function(year_start, year_end) {
+  series_code <- "6579"
+  var_code <- "9324"
+  
+  anos <- year_start:year_end
+  parsed_data_list <- list()
+  
+  for (ano in anos) {
+    url <- paste0(
+      "https://servicodados.ibge.gov.br/api/v2/conjuntos/", series_code,
+      "/variaveis/", var_code,
+      "?localidades=N3[all]&periodos=", ano
+    )
+    
+    message(paste0("🔎 Buscando dados do IBGE para o ano de ", ano, "..."))
+    
+    tryCatch({
+      response <- GET(url)
+      stop_for_status(response)
+      data <- fromJSON(content(response, "text", encoding = "UTF-8"))
+      
+      series_list <- data[[1]]$resultados[[1]]$series
+      
+      for (serie_item in series_list) {
+        uf_id <- serie_item$localidade$id
+        uf_nome <- serie_item$localidade$nome
+        anos <- names(serie_item$serie)
+        valores <- unlist(serie_item$serie)
+        
+        for (i in seq_along(anos)) {
+          parsed_data_list[[length(parsed_data_list) + 1]] <- data.frame(
+            ano = as.integer(anos[i]),
+            uf_id = uf_id,
+            uf_nome = uf_nome,
+            populacao_estimada = as.integer(valores[i]),
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+    }, error = function(e) {
+      message(paste0("❌ Erro ao buscar dados para o ano ", ano, ": ", e$message))
+    })
+  }
+  
+  if (length(parsed_data_list) > 0) {
+    return(bind_rows(parsed_data_list))
+  } else {
+    warning("⚠️ Nenhum dado coletado.")
+    return(data.frame())
+  }
+}
+
+# --- 3. Uso: coleta de 2021 a 2023 ---
+dados_populacao_ibge_r <- get_ibge_population_data_r(2021, 2023)
+
+# --- 4. Visualiza e exporta ---
+if (nrow(dados_populacao_ibge_r) > 0) {
+  print(head(dados_populacao_ibge_r))
+  write.csv(dados_populacao_ibge_r, "populacao_ibge_2021_2023.csv", row.names = FALSE)
+  message("✅ Arquivo CSV 'populacao_ibge_2021_2023.csv' salvo com sucesso.")
+} else {
+  message("⚠️ Nenhum dado retornado. CSV não foi gerado.")
+}
+
+```
+
+### Teste
+
+```{r}
+library(httr)
+library(jsonlite)
+
+url <- "https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/2021-2023/variaveis/9324?localidades=N3[all]"
+response <- GET(url)
+json_text <- content(response, "text", encoding = "UTF-8")
+cat(json_text)
+
+```
+
+```{r}
+library(httr)
+
+url <- "https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/2021/variaveis/9324?localidades=N3[all]"
+response <- GET(url)
+
+# Mostra o status da resposta
+print(status_code(response))
+
+# Mostra o conteúdo bruto retornado pela API
+conteudo <- content(response, "text", encoding = "UTF-8")
+cat(conteudo)
+
+```
+
+## Web Scrap sidra.ibge
+
+```{r}
+
+#install.packages("rvest")
+#install.packages("dplyr")
+#install.packages("stringr")
+
+library(rvest)
+library(dplyr)
+library(stringr)
+
+# URL da tabela no site do SIDRA/IBGE
+url <- "https://sidra.ibge.gov.br/tabela/6579#resultado"
+
+# Lê a página HTML
+pagina <- read_html(url)
+
+# Extrai as tabelas HTML (pode demorar alguns segundos)
+tabelas <- pagina %>% html_table(fill = TRUE)
+
+# Mostra quantas tabelas foram encontradas
+length(tabelas)
+
+# Normalmente a tabela com dados está na segunda ou terceira posição
+tabela_pop <- tabelas[[2]]
+
+# Limpa e organiza a tabela
+tabela_limpa <- tabela_pop %>%
+  select(UF = 1, Populacao_2021 = 2) %>%
+  filter(!is.na(Populacao_2021)) %>%
+  mutate(
+    UF = str_trim(UF),
+    Populacao_2021 = as.integer(gsub("\\.", "", Populacao_2021))
+  )
+
+# Visualiza os dados
+print(tabela_limpa)
+
+# Salva em CSV
+write.csv(tabela_limpa, "populacao_uf_2021_webscrap.csv", row.names = FALSE)
+
+```
+
+## 
+
+```{r}
+#install.packages("rvest")
+#install.packages("httr")     # para requisições mais robustas
+#install.packages("dplyr")    # para manipular os dados
+
+
+library(rvest)
+library(dplyr)
+
+# URL da página que queremos raspar
+url <- "https://g1.globo.com/"
+
+# Ler o conteúdo HTML da página
+pagina <- read_html(url)
+
+# Extrair os títulos das manchetes (usando a classe CSS correta)
+titulos <- pagina %>%
+  html_nodes(".feed-post-link") %>%   # seletor CSS
+  html_text(trim = TRUE)
+
+# Mostrar os primeiros títulos
+head(titulos)
+
+```

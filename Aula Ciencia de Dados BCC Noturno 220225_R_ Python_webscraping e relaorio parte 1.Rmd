@@ -1,0 +1,273 @@
+---
+title: "Web Scraping com Python no RStudio: Projeto DF Imóveis"
+author: "Prof. MSc. Weslley Rodrigues"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    toc: true
+    toc_depth: 3
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(reticulate)
+```
+
+# **Introdução**
+
+Este documento exemplifica como utilizar **Python** dentro do **RStudio** utilizando o pacote `reticulate`. Vamos explorar técnicas de **web scraping** para coletar dados de apartamentos à venda em Brasília no site **DF Imóveis**, utilizando o código previamente otimizado.
+
+#### **Créditos**
+
+#### \*\* Análise baseada em uma das entregas do semestre passado faita pelas alunas Glaucia e Suênia e adaptada para esta aula.\*\*
+
+------------------------------------------------------------------------
+
+# **1. Configuração do Ambiente**
+
+## Configurando o Caminho do Python
+
+Esta etapa é uma das mais críticas, pois precisam loalizar o caminho correto do executável Python.
+
+A maior parte dos erros ao usar `reticulate` ocorre aqui.
+
+```{r python-setup, echo=TRUE}
+# Configurando o caminho do Python
+python_path <- "/Users/mr.weslley/.virtualenvs/r-reticulate/bin/python"
+use_python(python_path, required = TRUE)
+
+# Verificar a configuração do Python
+py_config()
+```
+
+------------------------------------------------------------------------
+
+# **2. Web Scraping com Python**
+
+-   Utilizei o **BeautifulSoup** para realizar o scraping de dados de apartamentos. O código coleta informações de diversas páginas e salva os dados em um arquivo CSV.
+
+-   Lembrem-se que há variações dependendo do tipo de site que você deseja coletar os dados. Por exemplo, se o site utiliza JavaScript para renderizar o conteúdo, você pode precisar de uma abordagem diferente, como **Selenium**. Podem utilizar o **Scrapy** que é uma biblioteca mais robusta para web scraping.O usos é recomendado para sites mais complexos.
+
+-   Fizemos isto em aulas anteriores, mas agora vamos fazer de forma mais automatizada.
+
+```{python web-scraping, echo=TRUE}
+import pandas as pd
+import re
+import time
+from bs4 import BeautifulSoup
+import requests
+
+# Lista de bairros alvo
+bairros = [
+    "ASA NORTE", "NOROESTE", "ASA SUL", "SUDOESTE", "PARK SUL",
+    "LAGO NORTE", "JARDINS MANGUEIRAL", "OCTOGONAL", "JARDIM BOTANICO",
+    "VILA PLANALTO", "PARK WAY", "LAGO SUL", "GRANJA DO TORTO", "TAQUARI"
+]
+
+# URL base e inicialização
+url_base = 'https://www.dfimoveis.com.br/venda/df/brasilia/apartamento'
+pagina_atual = 1
+max_paginas = 20  # Limite máximo de páginas
+apartamentos_data = []
+
+while pagina_atual <= max_paginas:
+    print(f"Coletando dados da página {pagina_atual}...")
+    response = requests.get(f"{url_base}?pagina={pagina_atual}")
+    if response.status_code != 200:
+        print(f"Erro ao acessar a página {pagina_atual}. Status code: {response.status_code}")
+        break
+
+    site = BeautifulSoup(response.text, 'html.parser')
+    apartamentos = site.find_all('a', class_='new-card')
+
+    if not apartamentos:
+        print("Finalizado: Nenhum apartamento encontrado nesta página.")
+        break
+
+    for apartamento in apartamentos:
+        endereco_elem = apartamento.find('h2', class_='new-title phrase')
+        preco_elem = apartamento.find('div', class_='new-price')
+        detalhes_elem = apartamento.find('ul', class_='new-details-ul')
+
+        endereco_texto = endereco_elem.text.strip() if endereco_elem else None
+        bairro = next((b for b in bairros if b in endereco_texto), None) if endereco_texto else None
+
+        preco_texto = preco_elem.find_all('h4') if preco_elem else []
+        preco = preco_texto[0].text.strip() if len(preco_texto) > 0 else None
+        valor_metro_quadrado = preco_texto[1].text.strip() if len(preco_texto) > 1 else None
+
+        metros_quadrados = None
+        quartos = suites = vagas = None
+        if detalhes_elem:
+            detalhes = detalhes_elem.find_all('li')
+            metros_quadrados = detalhes_elem.find('li', class_='m-area')
+            metros_quadrados = metros_quadrados.text.strip() if metros_quadrados else None
+
+            for item in detalhes:
+                texto = item.span.text.strip()
+                if 'quarto' in texto.lower():
+                    quartos = texto
+                elif 'suíte' in texto.lower():
+                    suites = texto
+                elif 'vaga' in texto.lower():
+                    vagas = texto
+
+        apartamentos_data.append({
+            'Endereço': endereco_texto,
+            'Bairro': bairro,
+            'Preço': preco,
+            'Valor do Metro Quadrado': valor_metro_quadrado,
+            'Metros Quadrados': metros_quadrados,
+            'Quartos': quartos,
+            'Suítes': suites,
+            'Vagas': vagas
+        })
+
+    time.sleep(2)  # Pausa para evitar sobrecarregar o servidor
+    pagina_atual += 1
+
+# Criando o DataFrame e salvando como CSV
+df = pd.DataFrame(apartamentos_data)
+df.to_csv('apartamentos.csv', index=False) # Neste ponto muita atenção, pois se ficar armazendo localmente no seu PC eu mão conseguirei reproduzir para avaliar.
+print("Coleta concluída. Dados salvos em 'apartamentos.csv'.")
+```
+
+------------------------------------------------------------------------
+
+### **Compreendendo o que foi feito. Tem muita coisa aqui!**
+
+1.  **Objetivo**
+    -   O código coleta informações de apartamentos disponíveis para venda em Brasília, extraindo dados de até 20 páginas do site DF Imóveis.Essa liitação otimizo a coleta. Experimente coletar mais páginas, quando desisti estava na 102 rsrsrs.
+2.  **Uso do Loop:**
+    -   O loop percorre cada página do site, começando na página 1 e parando ao atingir o limite de 20 páginas (`max_paginas`).
+    -   A condição `while pagina_atual <= max_paginas` garante que a coleta não exceda o número máximo de páginas especificado.
+    -   Durante cada iteração, uma requisição HTTP é enviada à página correspondente, e os dados são extraídos com o **BeautifulSoup**.
+3.  **Tratamento de Dados:**
+    -   Os dados são organizados em um formato tabular e armazenados em um arquivo CSV.
+    -   Uma pausa de 2 segundos (`time.sleep(2)`) entre as requisições minimiza o risco de sobrecarga nos servidores.
+4.  **Customizações Possíveis:**
+    -   **Número de Páginas:** Para alterar o número de páginas, basta modificar o valor de `max_paginas`.
+    -   **Critérios de Parada:** Além do limite de páginas, o código pode ser ajustado para parar com base em condições específicas, como um intervalo de preços ou uma data de publicação.
+    -   **Intervalo Entre Requisições:** O valor de `time.sleep()` pode ser ajustado para respeitar as políticas do site.
+
+------------------------------------------------------------------------
+
+### **Em suma**
+
+O ajuste para um limite de 20 páginas garante maior controle sobre o processo de coleta e evita execuções desnecessariamente longas. Esse tipo de configuração é especialmente útil para projetos educativos ou de prototipação, permitindo análises rápidas e eficientes de um subconjunto representativo dos dados disponíveis.
+
+## Isso é muito comum nas análises práticas antes de rodar o conjunto completo.
+
+# **Importando os Dados no R**
+
+Após a execução do código Python, os dados foram salvos em `apartamentos.csv`. Agora, vamos importar esses dados no R para análise e visualização.
+
+Você poderia continuar utilizando pthon e gerando visualizaões muito interessantes por meio de bibllotecas como **Matplotlib** e **Seaborn**. Mas, vamos fazer isso no R, eu mereço né? rsrsrs
+
+```{r import-data, echo=TRUE}
+library(readr)
+
+# Importando o arquivo CSV
+apartamentos <- read_csv("apartamentos.csv")
+
+# Visualizando as primeiras linhas
+head(apartamentos)
+```
+
+------------------------------------------------------------------------
+
+# **Análise e Visualização dos Dados**
+
+Utilizando o R, realizei algumas análises exploratórias e visualizações para interpretar os dados.
+
+## Contagem de Apartamentos por Bairro
+
+```{r contagem-por-bairro, echo=TRUE}
+library(ggplot2)
+library(dplyr)
+
+# Carregar os dados do CSV gerado
+df <- read.csv("apartamentos.csv")
+
+# Contar os apartamentos por bairro
+contagem_por_bairro <- df %>%
+  count(Bairro, name = "Numero_Apartamentos") %>%
+  arrange(desc(Numero_Apartamentos))
+
+# Gráfico de barras aprimorado com ggplot2
+ggplot(contagem_por_bairro, aes(x = reorder(Bairro, -Numero_Apartamentos), y = Numero_Apartamentos, fill = Numero_Apartamentos)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  geom_text(aes(label = Numero_Apartamentos), vjust = -0.5, size = 3.5, color = "black") +
+  scale_fill_gradient(low = "skyblue", high = "blue") +
+  labs(
+    title = "Distribuição de Apartamentos por Bairro",
+    subtitle = "Número de apartamentos listados em cada bairro de Brasília",
+    x = "Bairro",
+    y = "Número de Apartamentos"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  )
+```
+
+------------------------------------------------------------------------
+
+## Preço Médio por Bairro
+
+```{r preco-medio, echo=TRUE}
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+# Limpeza e transformação de preços para análise
+apartamentos <- apartamentos %>%
+  mutate(
+    Preço = as.numeric(gsub("\\D", "", Preço))  # Remove caracteres não numéricos
+  ) %>%
+  filter(!is.na(Bairro) & !is.na(Preço))  # Remove valores ausentes
+
+# Calcular o preço médio por bairro
+preco_medio <- apartamentos %>%
+  group_by(Bairro) %>%
+  summarise(PrecoMedio = mean(Preço, na.rm = TRUE)) %>%
+  arrange(desc(PrecoMedio))
+
+# Visualização aprimorada
+ggplot(preco_medio, aes(x = reorder(Bairro, -PrecoMedio), y = PrecoMedio, fill = PrecoMedio)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  geom_text(aes(label = scales::label_dollar(prefix = "R$ ", big.mark = ".", decimal.mark = ",")(PrecoMedio)),
+            vjust = -0.5, size = 3.5, color = "black") +
+  scale_fill_gradient(low = "skyblue", high = "blue") +
+  scale_y_continuous(labels = scales::label_dollar(prefix = "R$ ", big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Preço Médio por Bairro",
+    subtitle = "Média de preços listados para cada bairro em Brasília",
+    x = "Bairro",
+    y = "Preço Médio"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  )
+```
+
+------------------------------------------------------------------------
+
+# **Sobre esta Seção. Bem especial**
+
+Demonstrei como integrar Python e R em um único documento utilizando o `reticulate`. A combinação de ambas as linguagens oferece flexibilidade para coleta de dados e análise exploratória, proporcionando um fluxo de trabalho eficiente e pode ser reproduzida.
+
+Lembre-se que a limguagem para o trabalho é de livre escolha, mas é importante que você saiba que pode contar com o R para fazer análises mais robustas e visualizações mais complexas. Principalmente se envolver cáculos estatísticos.
+
+------------------------------------------------------------------------
+
+# Parte 3 O relatório
+
+Para apoiar na execuão do Projeto prático fial. Gerei uma versão de como seria um relatório nos moldes solicitados, desta análise simples.
