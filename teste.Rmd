@@ -1,0 +1,168 @@
+---
+title: "Untitled"
+author: "Átila Alves"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Teste
+
+```{r}
+install.packages("reticulate")
+
+```
+# via python
+```{r}
+library(reticulate)
+
+use_python("C:/Users/atila.rodrigues/AppData/Local/Programs/Python/Python313/python.exe", required = TRUE)
+
+# Importa o módulo Kaggle API
+KaggleApi <- import("kaggle.api.kaggle_api_extended")$KaggleApi
+
+# Instancia e autentica
+api <- KaggleApi()
+api$authenticate()
+
+# Baixa e descompacta dataset
+api$dataset_download_files('zynicide/wine-reviews', path = 'dados', unzip = TRUE)
+
+cat("Download concluído.\n")
+
+
+```
+
+## Passo 1: Caminho do python e instalação das bibliotecas
+```{r}
+library(reticulate)
+use_python("C:/Users/atila.rodrigues/AppData/Local/Programs/Python/Python313/python.exe", required = TRUE)
+py_config()
+
+
+#"C:\Users\atila.rodrigues\AppData\Local\R\cache\R\reticulate\uv\cache\archive-v0\aDnsKMsE89TYG1_azQjN8\Scripts\python.exe" -m pip install kaggle
+#C:/Users/atila.rodrigues/AppData/Local/Programs/Python/Python313/python.exe -m pip install kaggle --upgrade
+
+```
+
+```{r}
+library(reticulate)
+
+#reticulate::py_install(c("requests", "kaggle"), pip = TRUE, upgrade = TRUE)
+
+
+# Usa o mesmo Python onde foi instalado
+use_python("C:/Users/atila.rodrigues/AppData/Local/Programs/Python/Python313/python.exe", required = TRUE)
+
+kaggle <- import("kaggle")
+KaggleApi <- import("kaggle.api.kaggle_api_extended")$KaggleApi
+api <- KaggleApi()
+api$authenticate()
+
+api$dataset_download_files("ruchi798/data-science-job-salaries",
+                           path = "dados", unzip = TRUE)
+
+cat("✅ Download concluído com sucesso!\n")
+
+
+```
+
+### teste erro
+```{r}
+reticulate::py_last_error()
+
+```
+
+```{python}
+import requests
+print(requests.get("https://www.kaggle.com").status_code)
+
+```
+
+```{r}
+library(reticulate)
+use_python("C:/Users/atila.rodrigues/AppData/Local/Programs/Python/Python313/python.exe", required = TRUE)
+py_config()
+```
+
+```{r}
+library(reticulate)
+
+use_python("C:/Users/atila.rodrigues/AppData/Local/Programs/Python/Python313/python.exe", required = TRUE)
+
+py_run_string("import requests")
+py_run_string("r = requests.get('https://www.kaggle.com')")
+py_run_string("print(r.status_code)")
+
+```
+
+
+
+
+# Passo 2: Baixando o dataset do Kagle
+```{python}
+#pip install kaggle
+
+import kaggle
+from kaggle.api.kaggle_api_extended import KaggleApi
+
+# Autenticação
+api = KaggleApi()
+api.authenticate()
+
+# Exemplo: baixar dataset de salários em ciência de dados
+api.dataset_download_files(
+    'ruchi798/data-science-job-salaries',  # ID do dataset
+    path='dados',                          # Pasta onde salvar
+    unzip=True                             # Descompacta o .zip
+)
+
+print("Download concluído com sucesso!")
+
+```
+```{r}
+import pandas as pd
+
+df = pd.read_csv("dados/Levels_Fyi_Salary_Data.csv")
+print(df.head())
+```
+
+
+
+
+
+
+
+
+```{r}
+install.packages("reticulate")
+
+library(httr)
+library(jsonlite)
+
+
+# Correto: carrega o JSON a partir de um arquivo
+kaggle_token <- fromJSON(file = "C:/Users/atila.rodrigues/Desktop/Projetos/Kaggle/kaggle.json")
+
+# Agora você pode usar:
+username <- kaggle_token$username
+key <- kaggle_token$key
+
+# Montar a chamada com autenticação
+res <- GET("https://www.kaggle.com/api/v1/datasets/list",
+           authenticate(username, key))
+
+# Ver os datasets
+dados <- content(res, as = "parsed", simplifyDataFrame = TRUE)
+head(dados)
+
+```
+
+
+```{r}
+
+```
+
